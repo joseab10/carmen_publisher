@@ -10,5 +10,5 @@ catkin_package()
 #############
 
 install(PROGRAMS
-scripts/carmen2rosbag.py
+script/carmen2rosbag.py
 DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION})
