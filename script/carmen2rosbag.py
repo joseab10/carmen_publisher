@@ -24,6 +24,7 @@ import roslib
 import tf
 import numpy as np
 import sys, getopt
+from std_msgs.msg import Bool as BoolMsg
 from geometry_msgs.msg import Point, Quaternion, TransformStamped
 from nav_msgs.msg import Odometry
 from sensor_msgs.msg import LaserScan
@@ -95,6 +96,9 @@ class carmen2rosbag:
 		true_odom_link 	  = rospy.get_param("~trueodom_link", "gt_odom")
 		ROBOTLASER1_link  = rospy.get_param("~ROBOTLASER1_link", "ROBOTLASER1_link")
 		ROBOTLASER2_link  = rospy.get_param("~ROBOTLASER2_link", "ROBOTLASER2_link")
+
+		self._append_eos = rospy.get_param("~append_eos", True)
+		self._eos_topic = rospy.get_param("~eos_topic", "endOfSim")
 
 		# Hacky param to choose which one of ODOM logs or ROBOTLASER1 to publish on tf.
 		# If set to False, ODOM is pub on tf
@@ -192,6 +196,7 @@ class carmen2rosbag:
 				if not self.laser_msg.header.stamp.secs == 0:
 					self.bag.write(topic, self.laser_msg, self.laser_msg.header.stamp)
 
+					#if True:
 					if self.publish_corrected:
 						topic = self.topics["TF"]
 						self.bag.write(topic, self.tf2_msg, self.laser_msg.header.stamp)
@@ -257,6 +262,40 @@ class carmen2rosbag:
 			self.increment_stamp()
 			self.tf2_msg = TFMessage()
 
+		# Append an EndOfSimulation message for repeated experimentation
+		if self._append_eos:
+			eos_msg = BoolMsg()
+			eos_msg.data = True
+
+			eos_time = self.stamp
+
+			# Get latest time stamp
+			try:
+				if self.tf_msg.header.stamp > eos_time:
+					eos_time = self.tf_msg.header.stamp
+			except:
+				rospy.logwarn("No tf_msg stamp.")
+			try:
+				if self.tf2_msg.header.stamp > eos_time:
+					eos_time = self.tf2_msg.header.stamp
+			except:
+				rospy.logwarn("No tf2_msg stamp.")
+			try:
+				if self.pose_msg.header.stamp > eos_time:
+					eos_time = self.pose_msg.header.stamp
+			except:
+				rospy.logwarn("No pose_msg stamp.")
+			try:
+				if self.laser_msg.header.stamp > eos_time:
+					eos_time = self.laser_msg.header.stamp
+			except:
+				rospy.logwarn("No laser_msg stamp.")
+
+			# Increment it by 10s
+			eos_time += rospy.Duration(10)
+			self.bag.write(self._eos_topic, eos_msg, eos_time)
+
+
 	def fillUpLaserMessage(self, words):
 
 		self.laser_msg.header.frame_id = "base_link"
@@ -296,7 +335,11 @@ class carmen2rosbag:
 
 		self.laser_msg.intensities = ranges
 
-		self.laser_msg.header.stamp = rospy.Time( float(words[last_emission_reading+2]) )
+		ts = float(words[last_emission_reading+2])
+		if ts == 0:
+			self.laser_msg.header.stamp = self.stamp
+		else:
+			self.laser_msg.header.stamp = rospy.Time(ts)
 
 	def fillUpOldLaserMessage(self, words):
 
@@ -342,7 +385,11 @@ class carmen2rosbag:
 		self.laser_msg.range_max = max_reading
 
 		self.laser_msg.ranges = ranges
-		self.laser_msg.header.stamp = rospy.Time( float(words[last_range_reading+7]) )
+		ts = float(words[last_range_reading+7])
+		if ts == 0:
+			self.laser_msg.header.stamp = self.stamp
+		else:
+			self.laser_msg.header.stamp = rospy.Time(ts)
 
 		#TODO : x y theta odom_x odom_y odom_theta
 		#       find out what they are and deal with it
@@ -400,7 +447,11 @@ class carmen2rosbag:
 
 			factor_angle_fitting = factor_angle_fitting / float(2)
 
-		self.laser_msg.header.stamp = rospy.Time( float(words[last_range_reading+13]) )
+		ts = float(words[last_range_reading+13])
+		if ts == 0:
+			self.laser_msg.header.stamp = self.stamp
+		else:
+			self.laser_msg.header.stamp = rospy.Time(ts)
 
 		position = Point(float(words[last_range_reading+2]), float(words[last_range_reading+3]), 0.0)
 		quaternion = tf.transformations.quaternion_from_euler(0.0, 0.0, float(words[last_range_reading+4]))
@@ -454,7 +505,11 @@ class carmen2rosbag:
 		if float(words[7]) < 0:
 			return
 
-		self.pose_msg.header.stamp = rospy.Time( float(words[7]) )
+		ts = float(words[7])
+		if ts == 0:
+			self.pose_msg.header.stamp = self.stamp
+		else:
+			self.pose_msg.header.stamp = rospy.Time(ts)
 
 		position = Point(float(words[1]), float(words[2]), 0.0)
 		self.pose_msg.pose.pose.position = position
