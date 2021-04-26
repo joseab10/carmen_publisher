@@ -45,7 +45,7 @@ class carmen2rosbag:
 		self.OLD_LASER_MESSAGE_DEFINED   = ["FLASER", "RLASER", "LASER3", "LASER4"]
 		self.ROBOT_LASER_MESSAGE_DEFINED = ["ROBOTLASER1", "ROBOTLASER2"]
 		self.GPS_MESSAGE_DEFINED         = ["NMEAGGA", "NMEARMC"]
-		self.ODOM_DEFINED 				 =  "ODOM"
+		self.ODOM_DEFINED 				 =  "ODOMAAA"
 		self.TRUEPOS_DEFINED 			 =  "TRUEPOS"
 		self.PARAM_DEFINED               =  "PARAM"
 		self.SYNC_DEFINED	             =  "SYNC"
@@ -67,7 +67,7 @@ class carmen2rosbag:
 
 		self.pause = False
 
-		self.rate = rospy.get_param("~global_rate",  40)
+		self.rate = rospy.get_param("~global_rate",  4)
 
 		RAWLASER1_topic   = rospy.get_param("~RAWLASER1_topic", "/RAWLASER1")
 		RAWLASER2_topic   = rospy.get_param("~RAWLASER2_topic", "/RAWLASER2")
@@ -92,7 +92,7 @@ class carmen2rosbag:
 
 		robot_link  	  = rospy.get_param("~robot_link", "base_link")
 		odom_link   	  = rospy.get_param("~odom_link", "odom")
-		odom_robot_link	  = rospy.get_param("~odom_robot_link", "odom_robot_link")
+		odom_robot_link	  = rospy.get_param("~odom_robot_link", "odom")
 		true_odom_link 	  = rospy.get_param("~trueodom_link", "gt_odom")
 		ROBOTLASER1_link  = rospy.get_param("~ROBOTLASER1_link", "ROBOTLASER1_link")
 		ROBOTLASER2_link  = rospy.get_param("~ROBOTLASER2_link", "ROBOTLASER2_link")
@@ -107,7 +107,7 @@ class carmen2rosbag:
 		# There won't be anything on tf ...
 		# TODO : - less hacky way
 		#		 - choose which one of ROBOTLASER1 or ROBOTLASER2 etc
-		self.publish_corrected = rospy.get_param("~pub_corrected", False)
+		self.publish_corrected = rospy.get_param("~pub_corrected", True)
 
 		self.topics = {"RAWLASER1" 	 : RAWLASER1_topic,
 					   "RAWLASER2" 	 : RAWLASER2_topic,
@@ -169,6 +169,7 @@ class carmen2rosbag:
 		self.counter = 0
 
 		for line in self.f:
+			msg_parsed = True
 			words = line.split()
 
 			if self.pause == True:
@@ -252,15 +253,18 @@ class carmen2rosbag:
 			elif self.PARAM_DEFINED == words[0]:
 
 				self.param(words)
+				msg_parsed = False
 
 			else:
+				msg_parsed = False
 				if not self.unknown_entries.count(words[0]):
 					self.unknown_entries.append(words[0])
 					if not words[0] == "#":
 						rospy.logerr("Unknown entry %s !", words[0])
 
-			self.increment_stamp()
-			self.tf2_msg = TFMessage()
+			if msg_parsed:
+				self.increment_stamp()
+				self.tf2_msg = TFMessage()
 
 		# Append an EndOfSimulation message for repeated experimentation
 		if self._append_eos:
@@ -269,27 +273,27 @@ class carmen2rosbag:
 
 			eos_time = self.stamp
 
-			# Get latest time stamp
-			try:
-				if self.tf_msg.header.stamp > eos_time:
-					eos_time = self.tf_msg.header.stamp
-			except:
-				rospy.logwarn("No tf_msg stamp.")
-			try:
-				if self.tf2_msg.header.stamp > eos_time:
-					eos_time = self.tf2_msg.header.stamp
-			except:
-				rospy.logwarn("No tf2_msg stamp.")
-			try:
-				if self.pose_msg.header.stamp > eos_time:
-					eos_time = self.pose_msg.header.stamp
-			except:
-				rospy.logwarn("No pose_msg stamp.")
-			try:
-				if self.laser_msg.header.stamp > eos_time:
-					eos_time = self.laser_msg.header.stamp
-			except:
-				rospy.logwarn("No laser_msg stamp.")
+			# # Get latest time stamp
+			# try:
+			# 	if self.tf_msg.header.stamp > eos_time:
+			# 		eos_time = self.tf_msg.header.stamp
+			# except:
+			# 	rospy.logwarn("No tf_msg stamp.")
+			# try:
+			# 	if self.tf2_msg.header.stamp > eos_time:
+			# 		eos_time = self.tf2_msg.header.stamp
+			# except:
+			# 	rospy.logwarn("No tf2_msg stamp.")
+			# try:
+			# 	if self.pose_msg.header.stamp > eos_time:
+			# 		eos_time = self.pose_msg.header.stamp
+			# except:
+			# 	rospy.logwarn("No pose_msg stamp.")
+			# try:
+			# 	if self.laser_msg.header.stamp > eos_time:
+			# 		eos_time = self.laser_msg.header.stamp
+			# except:
+			# 	rospy.logwarn("No laser_msg stamp.")
 
 			# Increment it by 10s
 			eos_time += rospy.Duration(10)
@@ -335,11 +339,12 @@ class carmen2rosbag:
 
 		self.laser_msg.intensities = ranges
 
-		ts = float(words[last_emission_reading+2])
-		if ts == 0:
-			self.laser_msg.header.stamp = self.stamp
-		else:
-			self.laser_msg.header.stamp = rospy.Time(ts)
+		# ts = float(words[last_emission_reading+2])
+		# if ts == 0:
+		# 	self.laser_msg.header.stamp = self.stamp
+		# else:
+		# 	self.laser_msg.header.stamp = rospy.Time(ts)
+		self.laser_msg.header.stamp = self.stamp
 
 	def fillUpOldLaserMessage(self, words):
 
@@ -385,23 +390,28 @@ class carmen2rosbag:
 		self.laser_msg.range_max = max_reading
 
 		self.laser_msg.ranges = ranges
-		ts = float(words[last_range_reading+7])
-		if ts == 0:
-			self.laser_msg.header.stamp = self.stamp
-		else:
-			self.laser_msg.header.stamp = rospy.Time(ts)
+		#ts = float(words[last_range_reading+7])
+		#if ts == 0:
+		#	self.laser_msg.header.stamp = self.stamp
+		#else:
+		#	self.laser_msg.header.stamp = rospy.Time(ts)
+		self.laser_msg.header.stamp = self.stamp
 
 		#TODO : x y theta odom_x odom_y odom_theta
 		#       find out what they are and deal with it
+		#       <JAB> I think x y theta represent the pose of the laser sensor,
+		#       while odom_x odom_y and odom_theta are the pose of the robot's base
 
 		robot_link = self.links["ROBOT"]
 		odom_link  = self.links["ROBOTODOM"]
 
 		# tf needs to be publish a little bit in the future
-		self.tf_odom_robot_msg.header.stamp = self.laser_msg.header.stamp + rospy.Duration(0.01)
+		#self.tf_odom_robot_msg.header.stamp = self.laser_msg.header.stamp + rospy.Duration(0.01)
+		self.tf_odom_robot_msg.header.stamp = self.stamp
 
-		position = Point(float(words[last_range_reading+4]), float(words[last_range_reading+5]), 0.0)
-		quaternion = tf.transformations.quaternion_from_euler(0.0, 0.0, float(words[last_range_reading+6]))
+		pose_position = last_range_reading + 1
+		position = Point(float(words[pose_position]), float(words[pose_position+1]), 0.0)
+		quaternion = tf.transformations.quaternion_from_euler(0.0, 0.0, float(words[pose_position+2]))
 
 		self.tf_odom_robot_msg.header.frame_id 	  	 = odom_link
 		self.tf_odom_robot_msg.child_frame_id 		 = robot_link
@@ -447,11 +457,12 @@ class carmen2rosbag:
 
 			factor_angle_fitting = factor_angle_fitting / float(2)
 
-		ts = float(words[last_range_reading+13])
-		if ts == 0:
-			self.laser_msg.header.stamp = self.stamp
-		else:
-			self.laser_msg.header.stamp = rospy.Time(ts)
+		# ts = float(words[last_range_reading+13])
+		# if ts == 0:
+		# 	self.laser_msg.header.stamp = self.stamp
+		# else:
+		# 	self.laser_msg.header.stamp = rospy.Time(ts)
+		self.laser_msg.header.stamp = self.stamp
 
 		position = Point(float(words[last_range_reading+2]), float(words[last_range_reading+3]), 0.0)
 		quaternion = tf.transformations.quaternion_from_euler(0.0, 0.0, float(words[last_range_reading+4]))
@@ -505,11 +516,12 @@ class carmen2rosbag:
 		if float(words[7]) < 0:
 			return
 
-		ts = float(words[7])
-		if ts == 0:
-			self.pose_msg.header.stamp = self.stamp
-		else:
-			self.pose_msg.header.stamp = rospy.Time(ts)
+		# ts = float(words[7])
+		# if ts == 0:
+		# 	self.pose_msg.header.stamp = self.stamp
+		# else:
+		# 	self.pose_msg.header.stamp = rospy.Time(ts)
+		self.pose_msg.header.stamp = self.stamp
 
 		position = Point(float(words[1]), float(words[2]), 0.0)
 		self.pose_msg.pose.pose.position = position
